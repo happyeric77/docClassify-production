@@ -4,6 +4,8 @@ import datetime
 import re
 import numpy
 
+
+
 currentPath = os.getcwd()
 
 # If no LTE Black folder, create one
@@ -53,7 +55,7 @@ for snTable in snTables:
 products = [lteBlack, lteGrey, wifiBlack, wifiGrey]
 
 for product in products:
-    print('\n' * 3 + '-' * 50 + '\n{product} section start\n'.format(product=product['name']) + '-' * 50 + '\n' * 3)
+    print('\n' * 3 + '===' * 50 + '\n{product} section start\n'.format(product=product['name']) + '====' * 50 + '\n' * 3)
     allFiles = os.listdir(product['path'])
     # Seperate function test files and final test files to different array
     funcLogNames = []
@@ -197,7 +199,7 @@ for product in products:
 
 
     # Function test data fields, and generate function test report
-    print('*'*50 + '\nstart generating {product} function test rerport\n'.format(product=product['name']) + '*'*50)
+    print('*'*50 + '\nstart generating {product} function test rerport\n'.format(product=product['name']) + '*'*2)
 
     funcData = {
         'Application Version': [],
@@ -333,7 +335,7 @@ for product in products:
     except Exception as e:
         print('file "{product}" fail to generate "function test" report.'.format(product=file))
 
-    print('\n' * 3 + '-' * 50 + '\n{product} section done\n'.format(product=product['name'])+ '-' * 50 + '\n' * 10)
+    print('\n' * 3 + '-' * 50 + '\n{product} section done\n'.format(product=product['name'])+ '-' * 50 + '\n' * 2)
 
     targetDir = "functionTestReport"
     fileName = "functionTestReport_{product}_{date}.xlsx".format(date=datetime.datetime.now().strftime('%Y%m%d%H'), product=product['name'])
@@ -343,6 +345,7 @@ for product in products:
     df_function.to_excel(os.path.join(targetDir, fileName))
 
     # Combine function test and final test as combinedReport and save to combinedReport dir
+    print('\n' * 3 + '-' * 50 + '\nStart combining {product} "final test" and "function test" Report ...\n'.format(product=product['name']) + '-' * 50)
     df_combine = pd.merge(df_final, df_function, how='outer', suffixes=['_final', '_function'])
     targetDir = "combinedReport"
     fileName = "combinedTestReport_{product}_{date}.xlsx".format(date=datetime.datetime.now().strftime('%Y%m%d%H'),
@@ -350,6 +353,7 @@ for product in products:
     if not os.path.exists(targetDir):
         os.mkdir(targetDir)
     df_combine.to_excel(os.path.join(targetDir, fileName))
+    print('\n' * 3 + '===' * 50 + '\n{product} combinedReport(final + function) generated\n'.format(product=product['name']) + '====' * 50)
 
 
 
