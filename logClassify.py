@@ -192,13 +192,17 @@ for product in products:
     fileName = "finalTestReport_{product}_{date}.xlsx".format(date=datetime.datetime.now().strftime('%Y%m%d%H'), product=product['name'])
     if not os.path.exists(targetDir):
         os.mkdir(targetDir)
-    pd.DataFrame.from_dict(data, orient='index').T.to_excel(os.path.join(targetDir, fileName))
+    df_final = pd.DataFrame.from_dict(data, orient='index').T
+    df_final.to_excel(os.path.join(targetDir, fileName))
+
 
     # Function test data fields, and generate function test report
     print('*'*50 + '\nstart generating {product} function test rerport\n'.format(product=product['name']) + '*'*50)
 
     funcData = {
         'Application Version': [],
+        'DUT SN': [],
+        'DUT MAC': [],
         'Detect device and comport': [],
         'Burn BLE': [],
         'SOC version': [],
@@ -307,6 +311,19 @@ for product in products:
                 # 'Format'
                 check_function('formating...', 'Format')
 
+                # MAC# & SN
+                try:
+                    detail = get_mask_value('Create BD Address file with')[0].split(' ')
+                    macValue = detail[-1]
+                    mask = serialTable[0]==macValue
+                    serialValue = serialTable[mask][1].values[0]
+                    funcData['DUT SN'] += [serialValue]
+                    funcData['DUT MAC'] += [macValue]
+                except:
+                    funcData['DUT MAC'] += ['UNKNOWN']
+                    funcData['DUT SN'] += ['UNKNOWN']
+
+
                 print('file "{product}" succeeded to generate "Function test" report.'.format(product=file))
 
             except Exception as e:
@@ -322,4 +339,17 @@ for product in products:
     fileName = "functionTestReport_{product}_{date}.xlsx".format(date=datetime.datetime.now().strftime('%Y%m%d%H'), product=product['name'])
     if not os.path.exists(targetDir):
         os.mkdir(targetDir)
-    pd.DataFrame.from_dict(funcData, orient='index').T.to_excel(os.path.join(targetDir, fileName))
+    df_function = pd.DataFrame.from_dict(funcData, orient='index').T
+    df_function.to_excel(os.path.join(targetDir, fileName))
+
+    # Combine function test and final test as combinedReport and save to combinedReport dir
+    df_combine = pd.merge(df_final, df_function, how='outer', suffixes=['_final', '_function'])
+    targetDir = "combinedReport"
+    fileName = "combinedTestReport_{product}_{date}.xlsx".format(date=datetime.datetime.now().strftime('%Y%m%d%H'),
+                                                                 product=product['name'])
+    if not os.path.exists(targetDir):
+        os.mkdir(targetDir)
+    df_combine.to_excel(os.path.join(targetDir, fileName))
+
+
+
