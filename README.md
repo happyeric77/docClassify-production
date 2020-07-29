@@ -4,21 +4,33 @@ Following the step below to start:
 
 ## install python in your Win or Mac
 
-##  install depandencies by pip in your terminal :
-- pandas
-```
-pip install pandas
-```
-* numpy
-```
-pip install numpy
-```
+##  prepare the enviornment:
+
+1. Clone this repository into the working directory:
+    - main file: logClassify.py
+    - utility (option): renaming folder script (nameModi.py)
+
+2. Install following two depandencies by pip
+
+    - pandas
+    ```
+    pip install pandas
+    ```
+    - numpy
+    ```
+    pip install numpy
+    ```
+
+
+
 ## Start generating report by production test log file
 
-1. generate the needed folder on the working directory
+1. generate the needed folder on the working directory by following command on the working directory
+
     ```
     python logClassify.py
     ```
+    
     folloiwng 7 folders will shows on the working directory
     - 98B-500-0007R-LTE_1B.B-99B-500-0006R
     - 98B-500-0010R-LTE_1B.G-99B-501-0006R
