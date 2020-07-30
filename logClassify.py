@@ -2,9 +2,6 @@ import pandas as pd
 import os
 import datetime
 import re
-import numpy
-
-
 
 currentPath = os.getcwd()
 
@@ -35,7 +32,7 @@ if not os.path.exists('SN_table'):
 lteBlack = {'path': currentPath + '/98B-500-0007R-LTE_1B.B-99B-500-0006R/', 'name': 'LTE-Black'}
 lteGrey = {'path': currentPath + '/98B-500-0010R-LTE_1B.G-99B-501-0006R/', 'name': 'LTE-Grey'}
 wifiBlack = {'path': currentPath + '/98B-500-0011R-WIFI_1A.B-99B-501-0005R/', 'name': 'WIFI-Black'}
-wifiGrey = {'path': currentPath + '/98B-500-0011R-WIFI_1A.B-99B-501-0005R/', 'name': 'WIFI-Grey'}
+wifiGrey = {'path': currentPath + '/98B-500-0012R-WIFI_1A.G-99B-500-0005R/', 'name': 'WIFI-Grey'}
 
 snDir = currentPath + '/SN_table/'
 snTables = os.listdir(snDir)
@@ -76,6 +73,11 @@ for product in products:
     print('\nfinal test log files:')
     print(logNames)
 
+    input('***' * 20 + "\nFor {product}, following logs are in the log corresponding folders".format(
+        product=product['name']) + '\nFinal Test log: {final}'.format(
+        final=len(logNames)) + '\nFunction Test log: {func}'.format(
+        func=len(funcLogNames)) + '\nEnter any key to go on ...')
+
     # Final test data fields, and generate final test report
     print('*' * 50 + '\nStart generating "{product}" final test rerport. \n'.format(product=product['name']) + '*' * 50)
 
@@ -100,89 +102,88 @@ for product in products:
 
             preFix, proFix = logName.split(".")
 
-            fwVersion = ''
+            def get_mask_value(condition):
+                mask =log[0].str.startswith(condition)
+                return log[mask].values[0]
+
+            def check_function(logContent, contentToFill):
+                try:
+                    duc = get_mask_value(logContent)[0]
+                    if duc and duc != '':
+                        data[contentToFill] += ['PASS']
+                    else:
+                        if ((len(re.findall(r'^WIFI', product['name'])) > 0) and (contentToFill == 'Check LTE Information')) or ((len(re.findall(r'^LTE', product['name'])) > 0) and (contentToFill == 'WIFI function')):
+                            data[contentToFill] += ['N/A']
+                        else:
+                            data[contentToFill] += ['FAIL']
+                except:
+                    if ((len(re.findall(r'^WIFI', product['name'])) > 0) and (contentToFill == 'Check LTE Information')) or ((len(re.findall(r'^LTE', product['name'])) > 0) and (contentToFill == 'WIFI function')):
+                        data[contentToFill] += ['N/A']
+                    else:
+                        data[contentToFill] += ['FAIL']
+
+            def retrieve_value(condition, contentToFill=''):
+                try:
+                    detail = get_mask_value(condition)[0]
+                    _, version = detail.split(':')
+                    value = version.replace(' ', '')
+                    if contentToFill != '':
+                        data[contentToFill] += [value]
+                    return value
+                except Exception as e:
+                    if contentToFill != '':
+                        data[contentToFill] += ['UNKNOWN']
+                    return e
+
             try:
-                log = pd.read_csv(product['path']+logName, header=None, delimiter=':')
-                dfKeys = log[0].values
+                log = pd.read_csv(product['path']+logName, header=None)
+                # Retrieve Application version
+                retrieve_value('Application Version:', 'Application Version')
 
-                for key in data.keys():
-                    # # set value generally as ''
-                    value = ''
+                # Test Time
+                retrieve_value('Test Time:', 'Test Time')
 
-                    # If key in the log, retrieve it as value (application version/ MAC )
-                    if key =='Application Version':
-                        value = str(log[log[0] == key][1].values[0]).replace(' ', '')
+                # MAC#
+                macValue = retrieve_value('DUT MAC:', 'DUT MAC')
 
-                    if key =='Test Time':
-                        value = str(log[log[0] == key][1].values[0]).replace(' ', '')
+                # SN
+                try:
+                    mask = serialTable[0] == macValue
+                    serialValue = serialTable[mask][1].values[0]
+                    data['DUT SN'] += [serialValue]
+                except:
+                    data['DUT SN'] += ['No Match on Serial Table']
 
-                    # If key is serial number, get the original mac and map to find sn#
-                    if key == 'DUT SN':
-                        macNum = str(log[log[0] == key][1].values[0]).replace(' ', '')
-                        try:
-                            serialNumber = serialTable[serialTable[0] == macNum][1].values[0]
-                            value = serialNumber
-                        except Exception as e:
-                            value = 'No Matching data in the SN table'
+                # Retrieve Detected device comport
+                try:
+                    detail = get_mask_value('Detected device comport=COM')
+                    if len(detail[0]) > 0:
+                        data['Detect device and comport'] += ['PASS']
+                    else:
+                        data['Detect device and comport'] += ['FAIL']
+                except:
+                    data['Detect device and comport'] += ['FAIL']
 
-                    if key == 'DUT MAC':
-                        value = str(log[log[0] == key][1].values[0]).replace(' ', '')
+                # BLE firmware
+                check_function('ble bicmd2 072b', 'BLE firmware')
 
-                    # if Detect device and comport show on log, pass
-                    if key == 'Detect device and comport':
-                        try:
-                            detail = log[log[0].str.startswith('Detected device comport')]
-                            value = 'PASS'
-                        except:
-                            value = 'FAIL'
+                # Firmware version
+                try:
+                    major = retrieve_value('Major:')
+                    minor = retrieve_value('Minor:')
+                    patch = retrieve_value('Patch:')
+                    fwVersion = str(major) + '.' + str(minor) + '.' + patch
+                    data['FW Version'] += [fwVersion]
+                except:
+                    data['FW Version'] += ['UNKNOWN']
+                # FW final check
+                check_function('Test Check Firmware PASS', 'FW Final Check')
+                # Check LTE Information
+                check_function('Test Check LTE Information PASS', 'Check LTE Information')
+                # Check WIFI function
+                check_function('Test Set WiFi Information PASS', 'WIFI function')
 
-                    # Retreving BLE FW version
-                    if key == 'BLE firmware' :
-                        detail = log[log[0].str.startswith('ble bicmd2')].values[0][0].split(' ')[2]
-                        if re.findall(r'^072b', detail):
-                            value = 'PASS'
-
-                    # Retrieving FW version
-                    if key == 'FW Version':
-                        major = log[log[0].str.startswith('Major')].values[0][1]
-                        minor = log[log[0].str.startswith('Minor')].values[0][1]
-                        patch = log[log[0].str.startswith('Patch')].values[0][1]
-                        value = major + '.' + minor + '.' + patch
-                    # Final FW check
-                    if key == 'FW Final Check':
-                        try:
-                            detail = log[log[0].str.startswith('Test Check Firmware PASS')].values[0][0].split(' ')
-                            value = detail[3]
-                        except:
-                            value = 'FAIL'
-
-                    # For LTE version: check LTE
-                    if key == 'Check LTE Information':
-                        try:
-                            iccid = log[log[0].str.startswith('SIM ICCID')].values[0][1]
-                            imsi = log[log[0].str.startswith('SIM IMSI')].values[0][1]
-                            lteModule = log[log[0].str.startswith('LTE MODULE')].values[0][1]
-                            value = 'PASS'
-                        except:
-                            try:
-                                log[log[0].str.startswith('Test Set WiFi Information PASS')].values[0][0].split(' ')
-                                value = 'N/A'
-                            except:
-                                value = 'FAIL'
-
-                    # For WIFI version: Test Set WiFi Information PASS
-                    if key == 'WIFI function':
-                        try:
-                            detail = log[log[0].str.startswith('Test Set WiFi Information PASS')].values[0][0].split(' ')
-                            value = detail[4]
-                        except:
-                            try:
-                                log[log[0].str.startswith('SIM ICCID')].values[0][1]
-                                value = 'N/A'
-                            except:
-                                value = 'FAIL'
-                    data[key] += [value]
-                print('file "{product}" succeeded to generate "final test" report.'.format(product=file))
+                print('file "{product}" succeeded to generate "final test" report.'.format(product=logName))
 
             except Exception as e:
                 print(logName + ' fail: Read file fail')
@@ -196,7 +197,6 @@ for product in products:
         os.mkdir(targetDir)
     df_final = pd.DataFrame.from_dict(data, orient='index').T
     df_final.to_excel(os.path.join(targetDir, fileName))
-
 
     # Function test data fields, and generate function test report
     print('*'*50 + '\nstart generating {product} function test rerport\n'.format(product=product['name']) + '*'*2)
@@ -323,10 +323,10 @@ for product in products:
                     funcData['DUT MAC'] += [macValue]
                 except:
                     funcData['DUT MAC'] += ['UNKNOWN']
-                    funcData['DUT SN'] += ['UNKNOWN']
+                    funcData['DUT SN'] += ['No Match on Serial Table']
 
 
-                print('file "{product}" succeeded to generate "Function test" report.'.format(product=file))
+                print('file "{product}" succeeded to generate "Function test" report.'.format(product=funcLogName))
 
             except Exception as e:
                 print(funcLogName + ' fail: Read file fail')
@@ -354,6 +354,8 @@ for product in products:
         os.mkdir(targetDir)
     df_combine.to_excel(os.path.join(targetDir, fileName))
     print('\n' * 3 + '===' * 50 + '\n{product} combinedReport(final + function) generated\n'.format(product=product['name']) + '====' * 50)
+
+    input('***'*20 + "\nFollowing {product}'s reports have been generated".format(product=product['name']) + '\nFinal Test report: {final}'.format(final=len(data['DUT MAC'])) + '\nFunction Test report: {func}'.format(func=len(funcData['DUT MAC'])) + '\nEnter any key to go on ...')
 
 
 
