@@ -3,6 +3,7 @@ import os
 import datetime
 import re
 
+version = '1.0'
 currentPath = os.getcwd()
 
 # If no LTE Black folder, create one
@@ -29,16 +30,16 @@ if not os.path.exists('98B-500-0012R-WIFI_1A.G-99B-500-0005R'):
 if not os.path.exists('SN_table'):
     os.mkdir('SN_table')
 
-lteBlack = {'path': currentPath + '/98B-500-0007R-LTE_1B.B-99B-500-0006R/', 'name': 'LTE-Black'}
-lteGrey = {'path': currentPath + '/98B-500-0010R-LTE_1B.G-99B-501-0006R/', 'name': 'LTE-Grey'}
-wifiBlack = {'path': currentPath + '/98B-500-0011R-WIFI_1A.B-99B-501-0005R/', 'name': 'WIFI-Black'}
-wifiGrey = {'path': currentPath + '/98B-500-0012R-WIFI_1A.G-99B-500-0005R/', 'name': 'WIFI-Grey'}
+lteBlack = {'path': currentPath + '/98B-500-0007R-LTE_1B.B-99B-500-0006R/', 'name': 'LTE-Black', 'qtyFuncRep':'', 'qtyFinRep': ''}
+lteGrey = {'path': currentPath + '/98B-500-0010R-LTE_1B.G-99B-501-0006R/', 'name': 'LTE-Grey', 'qtyFuncRep':'', 'qtyFinRep': ''}
+wifiBlack = {'path': currentPath + '/98B-500-0011R-WIFI_1A.B-99B-501-0005R/', 'name': 'WIFI-Black', 'qtyFuncRep':'', 'qtyFinRep': ''}
+wifiGrey = {'path': currentPath + '/98B-500-0012R-WIFI_1A.G-99B-500-0005R/', 'name': 'WIFI-Grey', 'qtyFuncRep':'', 'qtyFinRep': ''}
 
 snDir = currentPath + '/SN_table/'
 snTables = os.listdir(snDir)
-
 serialTable = None
 
+""" =======SN comparsim table before Aug===========
 try:
     for snTable in snTables:
         df = pd.read_csv(snDir + '/' + snTable, header=None)
@@ -53,7 +54,19 @@ try:
 except Exception as e:
     input('***'*20+'\nSN Table folder only takes .csv type file. "{snTable}" found.\nPress enter key to finish program'.format(snTable=snTable))
     raise ValueError("SN Table folder only takes .csv type file.")
+"""
 
+# SN & MAC table from SNS
+tables =[]
+try:
+    for snTable in snTables:
+        df = pd.read_csv(snDir + '/' + snTable)
+        tables.append(df)
+except Exception as e:
+    input('***'*20+'\nSN Table folder only takes .csv type file. "{snTable}" found.\nPress enter key to finish program'.format(snTable=snTable))
+    raise ValueError("SN Table folder only takes .csv type file.")
+
+serialTable = pd.concat(tables)
 
 
 products = [lteBlack, lteGrey, wifiBlack, wifiGrey]
@@ -64,6 +77,7 @@ for product in products:
     # Seperate function test files and final test files to different array
     funcLogNames = []
     logNames = []
+
 
     for file in allFiles:
         try:
@@ -155,8 +169,8 @@ for product in products:
 
                 # SN
                 try:
-                    mask = serialTable[0] == macValue
-                    serialValue = serialTable[mask][1].values[0]
+                    mask = serialTable['MAC'] == macValue
+                    serialValue = serialTable[mask]['SN'].values[0]
                     data['DUT SN'] += [serialValue]
                 except:
                     data['DUT SN'] += ['No Match on Serial Table']
@@ -328,8 +342,8 @@ for product in products:
                     macValue = detail[-1]
                     funcData['DUT MAC'] += [macValue]
                     try:
-                        mask = serialTable[0] == macValue
-                        serialValue = serialTable[mask][1].values[0]
+                        mask = serialTable['MAC'] == macValue
+                        serialValue = serialTable[mask]['SN'].values[0]
                         funcData['DUT SN'] += [serialValue]
                     except:
                         funcData['DUT SN'] += ['No Match on Serial Table']
@@ -368,7 +382,21 @@ for product in products:
 
     input('***'*20 + "\nFollowing {product}'s reports have been generated".format(product=product['name']) + '\nFinal Test report: {final}'.format(final=len(data['DUT MAC'])) + '\nFunction Test report: {func}'.format(func=len(funcData['DUT MAC'])) + '\nPress Enter key to close this console window ...')
 
+    product['qtyFuncRep'] = '{product} FT1: {files} logs in folder | {funcData} data in report'.format(
+        files=len(funcLogNames), funcData=len(funcData['DUT MAC']), product=product['name'])
+    product['qtyFinRep'] = '{product} FT2: {files} logs in folder | {data} data in report'.format(
+        files=len(logNames), data=len(data['DUT MAC']), product=product['name'])
 
 
+#export result to working dir
+currentTime = datetime.datetime.now().strftime('%Y%m%d%H')
+fName = 'logClassifyReport_{currentTime}.txt'.format(currentTime=currentTime)
+
+f = open(fName, 'w+')
+f.write('Tool Version: {version}\n'.format(version=version))
+for product in products:
+    f.write(product['qtyFuncRep']+'\n')
+    f.write(product['qtyFinRep']+'\n')
+f.close()
 
 
