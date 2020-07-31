@@ -38,16 +38,23 @@ snDir = currentPath + '/SN_table/'
 snTables = os.listdir(snDir)
 
 serialTable = None
-for snTable in snTables:
-    df = pd.read_csv(snDir + '/' + snTable, header=None)
-    try:
-        if serialTable == None:
-            serialTable = df
-        else:
-            pass
-    except Exception as e:
-        newTable = pd.concat([serialTable, df])
-        serialTable = newTable
+
+try:
+    for snTable in snTables:
+        df = pd.read_csv(snDir + '/' + snTable, header=None)
+        try:
+            if serialTable == None:
+                serialTable = df
+            else:
+                pass
+        except Exception as e:
+            newTable = pd.concat([serialTable, df])
+            serialTable = newTable
+except Exception as e:
+    input('***'*20+'\nSN Table folder only takes .csv type file. "{snTable}" found.\nPress enter key to finish program'.format(snTable=snTable))
+    raise ValueError("SN Table folder only takes .csv type file.")
+
+
 
 products = [lteBlack, lteGrey, wifiBlack, wifiGrey]
 
@@ -76,13 +83,13 @@ for product in products:
     input('***' * 20 + "\nFor {product}, following logs are in the log corresponding folders".format(
         product=product['name']) + '\nFinal Test log: {final}'.format(
         final=len(logNames)) + '\nFunction Test log: {func}'.format(
-        func=len(funcLogNames)) + '\nEnter any key to go on ...')
+        func=len(funcLogNames)) + '\nPress Enter key to go on ...')
 
     # Final test data fields, and generate final test report
     print('*' * 50 + '\nStart generating "{product}" final test rerport. \n'.format(product=product['name']) + '*' * 50)
 
     data = {
-        'Application Version': [],
+        'Application Version_FT2': [],
         'Test Time': [],
         'DUT SN': [],
         'DUT MAC': [],
@@ -138,7 +145,7 @@ for product in products:
             try:
                 log = pd.read_csv(product['path']+logName, header=None)
                 # Retrieve Application version
-                retrieve_value('Application Version:', 'Application Version')
+                retrieve_value('Application Version:', 'Application Version_FT2')
 
                 # Test Time
                 retrieve_value('Test Time:', 'Test Time')
@@ -202,7 +209,7 @@ for product in products:
     print('*'*50 + '\nstart generating {product} function test rerport\n'.format(product=product['name']) + '*'*2)
 
     funcData = {
-        'Application Version': [],
+        'Application Version_FT1': [],
         'DUT SN': [],
         'DUT MAC': [],
         'Detect device and comport': [],
@@ -246,6 +253,7 @@ for product in products:
                     else:
                         funcData[contentToFill] += ['FAIL']
 
+
             try:
                 funcLog = pd.read_csv(product['path']+funcLogName, header=None)
                 # Retrieve Application version
@@ -253,9 +261,9 @@ for product in products:
                     detail = get_mask_value('Application Version:')[0]
                     _, version = detail.split(':')
                     value = version.replace(' ', '')
-                    funcData['Application Version'] += [value]
+                    funcData['Application Version_FT1'] += [value]
                 except:
-                    funcData['Application Version'] += ['Unknown']
+                    funcData['Application Version_FT1'] += ['Unknown']
 
                 # Retrieve Detected device comport
                 try:
@@ -313,18 +321,21 @@ for product in products:
                 # 'Format'
                 check_function('formating...', 'Format')
 
-                # MAC# & SN
+                # MAC & SN number
+
                 try:
                     detail = get_mask_value('Create BD Address file with')[0].split(' ')
                     macValue = detail[-1]
-                    mask = serialTable[0]==macValue
-                    serialValue = serialTable[mask][1].values[0]
-                    funcData['DUT SN'] += [serialValue]
                     funcData['DUT MAC'] += [macValue]
+                    try:
+                        mask = serialTable[0] == macValue
+                        serialValue = serialTable[mask][1].values[0]
+                        funcData['DUT SN'] += [serialValue]
+                    except:
+                        funcData['DUT SN'] += ['No Match on Serial Table']
                 except:
-                    funcData['DUT MAC'] += ['UNKNOWN']
-                    funcData['DUT SN'] += ['No Match on Serial Table']
-
+                    funcData['DUT MAC'] += ['LogError. check log file: {logName}'.format(logName=funcLogName)]
+                    funcData['DUT SN'] += ['MAC# not found']
 
                 print('file "{product}" succeeded to generate "Function test" report.'.format(product=funcLogName))
 
@@ -355,7 +366,9 @@ for product in products:
     df_combine.to_excel(os.path.join(targetDir, fileName))
     print('\n' * 3 + '===' * 50 + '\n{product} combinedReport(final + function) generated\n'.format(product=product['name']) + '====' * 50)
 
-    input('***'*20 + "\nFollowing {product}'s reports have been generated".format(product=product['name']) + '\nFinal Test report: {final}'.format(final=len(data['DUT MAC'])) + '\nFunction Test report: {func}'.format(func=len(funcData['DUT MAC'])) + '\nEnter any key to go on ...')
+    input('***'*20 + "\nFollowing {product}'s reports have been generated".format(product=product['name']) + '\nFinal Test report: {final}'.format(final=len(data['DUT MAC'])) + '\nFunction Test report: {func}'.format(func=len(funcData['DUT MAC'])) + '\nPress Enter key to close this console window ...')
+
+
 
 
 
