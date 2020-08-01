@@ -2,10 +2,11 @@ import pandas as pd
 import os
 import datetime
 import re
-import Report
+from Report import Report
 
 toolVersion = '1.1'
 releaseNote = {
+    '1.1.1': ['Extract report to Report class module'],
     '1.1': [
         'Add shipping SN report',
         'Remove BLE version',
@@ -80,52 +81,6 @@ except Exception as e:
 serialTable = pd.concat(tables)
 
 
-def retrieve_value(condition, data, log, contentToFill=''):
-    try:
-        detail = get_mask_value(condition, log)[0]
-        _, version = detail.split(':')
-        value = version.replace(' ', '')
-        if contentToFill != '':
-            data[contentToFill] += [value]
-        return value
-    except Exception as e:
-        if contentToFill != '':
-            data[contentToFill] += ['N/A']
-        return e
-
-
-def get_mask_value(condition, log):
-    mask = log[0].str.startswith(condition)
-    return log[mask].values[0]
-
-
-def check_function(logContent, data, log, contentToFill):
-
-    try:
-        duc = get_mask_value(logContent, log)[0]
-
-        if duc and duc != '':
-            data[contentToFill] += ['PASS']
-        else:
-            if ((len(re.findall(r'^WIFI', product['name'])) > 0) and (contentToFill == 'Check LTE Information')) or (
-                    (len(re.findall(r'^LTE', product['name'])) > 0) and (contentToFill == 'WIFI function')) or (
-                    (len(re.findall(r'^WIFI', product['name'])) > 0) and (contentToFill == 'Test LTE Connection')) or (
-                    (len(re.findall(r'^LTE', product['name'])) > 0) and (contentToFill == 'Test WIFI connection')):
-                data[contentToFill] += ['N/A']
-
-            else:
-                data[contentToFill] += ['FAIL']
-    except:
-        if ((len(re.findall(r'^WIFI', product['name'])) > 0) and (contentToFill == 'Check LTE Information')) or (
-                (len(re.findall(r'^LTE', product['name'])) > 0) and (contentToFill == 'WIFI function')) or (
-                (len(re.findall(r'^WIFI', product['name'])) > 0) and (contentToFill == 'Test LTE Connection')) or (
-                (len(re.findall(r'^LTE', product['name'])) > 0) and (contentToFill == 'Test WIFI connection')):
-            data[contentToFill] += ['N/A']
-
-        else:
-            data[contentToFill] += ['FAIL']
-
-
 products = [lteBlack, lteGrey, wifiBlack, wifiGrey]
 for product in products:
     print('\n' * 3 + '===' * 50 + '\n{product} section start\n'.format(product=product['name']) + '====' * 50 + '\n' * 3)
@@ -170,6 +125,7 @@ for product in products:
         'Check LTE Information': [],
         'WIFI function': [],
     }
+    finalReport = Report(product, data)
 
     # Create shipping serial data fields, and generate production serial data form by Final test log
     print('*' * 50 + '\nstart generating {product} Serial data shipping report\n'.format(product=product['name']) + '*' * 2)
@@ -188,6 +144,7 @@ for product in products:
         'Estimated Time of Arrival': [],
         'Division': [],
     }
+    snReport = Report(product, snData)
 
     try:
         # loop through each final test log in folder
@@ -203,73 +160,77 @@ for product in products:
                 log = pd.read_csv(product['path']+logName, header=None)
 
                 # Retrieve ICCID (Shipping sn report)
-                retrieve_value('SIM ICCID', snData, log, 'ICCID')
-                test = retrieve_value('SIM ICCIDfdewaf', snData, log, '')
+                snReport.retrieve_value('SIM ICCID', log, 'ICCID')
+
                 # Retrieve, IMSI (Shipping sn report)
-                retrieve_value('SIM IMSI', snData, log, 'IMSI')
+                snReport.retrieve_value('SIM IMSI', log, 'IMSI')
+
                 # Retrieve IMEI (Shipping sn report)
-                retrieve_value('LTE MODULE:', snData, log, 'IMEI')
+                snReport.retrieve_value('LTE MODULE:', log, 'IMEI')
+
                 # fill color in sn report (Shipping sn report)
-                snData['Color'] += [product['name'].split('-')[1]]
+                snReport.data['Color'] += [product['name'].split('-')[1]]
+
                 # fill customer model name in sn report (Shipping sn report)
-                snData['Model'] += [product['bitkeyPN']]
+                snReport.data['Model'] += [product['bitkeyPN']]
                 # fill current time in sn report (Shipping sn report)
-                snData['Time'] += [datetime.datetime.now().strftime('%Y%m%d%H%M%S')]
-                # Test Time (Shipping sn report)
-                retrieve_value('Test Time:', data, log, 'Test Time')
+                snReport.data['Time'] += [datetime.datetime.now().strftime('%Y%m%d%H%M%S')]
+
+                # Test Time (final report)
+                finalReport.retrieve_value('Test Time:', log, 'Test Time')
 
                 # MAC#
-                macValue = retrieve_value('DUT MAC:', data, log, 'DUT MAC')
+                macValue = finalReport.retrieve_value('DUT MAC:', log, 'DUT MAC')
 
                 # retrieve carton number
                 try:
                     mask = serialTable['MAC'] == macValue
                     cartonNo = serialTable[mask]['Carton No'].values[0]
-                    snData['Carton No.'] += [cartonNo]
+                    snReport.data['Carton No.'] += [cartonNo]
                 except:
-                    snData['Carton No.'] += ['No Data Error']
+                    snReport.data['Carton No.'] += ['No Data Error']
 
                 # SN
                 try:
                     mask = serialTable['MAC'] == macValue
                     serialValue = serialTable[mask]['SN'].values[0]
-                    data['DUT SN'] += [serialValue]
-                    snData['SN'] += [serialValue]
+                    finalReport.data['DUT SN'] += [serialValue]
+                    snReport.data['SN'] += [serialValue]
                 except:
-                    data['DUT SN'] += ['No Match on Serial Table']
-                    snData['SN'] += ['No Match on Serial Table, check log file: {log}'.format(log=logName)]
+                    finalReport.data['DUT SN'] += ['No Match on Serial Table']
+                    snReport.data['SN'] += ['No Match on Serial Table, check log file: {log}'.format(log=logName)]
 
                 # Retrieve Detected device comport
                 try:
-                    detail = get_mask_value('Detected device comport=COM', log)
+                    detail = finalReport.get_mask_value('Detected device comport=COM', log)
                     if len(detail[0]) > 0:
-                        data['Detect device and comport'] += ['PASS']
+                        finalReport.data['Detect device and comport'] += ['PASS']
                     else:
-                        data['Detect device and comport'] += ['FAIL']
+                        finalReport.data['Detect device and comport'] += ['FAIL']
                 except:
-                    data['Detect device and comport'] += ['FAIL']
+                    finalReport.data['Detect device and comport'] += ['FAIL']
 
                 # BLE firmware
-                check_function('ble bicmd2 072b', data, log, 'BLE firmware')
+                finalReport.check_function('ble bicmd2 072b', product, log, 'BLE firmware')
 
                 # Firmware version
                 try:
-                    major = retrieve_value('Major:', data, log)
-                    minor = retrieve_value('Minor:', data, log)
-                    patch = retrieve_value('Patch:', data, log)
+                    major = finalReport.retrieve_value('Major:', log)
+                    minor = finalReport.retrieve_value('Minor:', log)
+                    patch = finalReport.retrieve_value('Patch:', log)
                     fwVersion = str(major) + '.' + str(minor) + '.' + patch
-                    data['FW Version'] += [fwVersion]
+                    finalReport.data['FW Version'] += [fwVersion]
                 except:
-                    data['FW Version'] += ['UNKNOWN']
+                    finalReport.data['FW Version'] += ['UNKNOWN']
 
                 # Retrieve Application version (final test report)
-                retrieve_value('Application Version:', data, log, 'Application Version_FT2')
+                finalReport.retrieve_value('Application Version:', log, 'Application Version_FT2')
                 # FW final check
-                check_function('Test Check Firmware PASS', data, log, 'FW Final Check')
+                finalReport.check_function('Test Check Firmware PASS', product, log, 'FW Final Check')
                 # Check LTE Information
-                check_function('Test Check LTE Information PASS', data, log, 'Check LTE Information')
+                finalReport.check_function('Test Check LTE Information PASS', product, log, 'Check LTE Information')
                 # Check WIFI function
-                check_function('Test Set WiFi Information PASS', data, log, 'WIFI function')
+                finalReport.check_function('Test Set WiFi Information PASS', product, log, 'WIFI function')
 
                 print('file "{product}" succeeded to generate "final test" report.'.format(product=logName))
 
@@ -282,18 +243,12 @@ for product in products:
     # Export Final Test report
     targetDir = "finalTestReport"
     fileName = "finalTestReport_{product}_{date}.xlsx".format(date=datetime.datetime.now().strftime('%Y%m%d%H'), product=product['name'])
-    if not os.path.exists(targetDir):
-        os.mkdir(targetDir)
-    df_final = pd.DataFrame.from_dict(data, orient='index').T
-    df_final.to_excel(os.path.join(targetDir, fileName))
+    finalReport.generate_report(product, targetDir, fileName)
 
     # Export shipping SN Report
     targetDir = "shippingSNReport"
     fileName = "serial_{product}.csv".format(product=product['bitkeyPN'])
-    if not os.path.exists(targetDir):
-        os.mkdir(targetDir)
-    df_sn = pd.DataFrame.from_dict(snData, orient='index').T
-    df_sn.to_csv(os.path.join(targetDir, fileName))
+    snReport.generate_report(product, targetDir, fileName)
 
     # Function test data fields, and generate function test report (funcData)
     print('*'*50 + '\nstart generating {product} function test rerport\n'.format(product=product['name']) + '*'*2)
@@ -305,7 +260,6 @@ for product in products:
         'Detect device and comport': [],
         'Burn BLE': [],
         'SOC version': [],
-        # 'BLE version': [],
         'Test Check Firmware': [],
         'Test LTE Connection': [],
         'Test WIFI connection': [],
@@ -315,107 +269,88 @@ for product in products:
         'Format': [],
     }
 
-    # funcReport = Report.Report(product, funcData)
+    funcReport = Report(product, funcData)
 
     try:
         for funcLogName in funcLogNames:
             if not re.findall(r"\.", funcLogName):
                 funcLogName=funcLogName + '.'
 
-            # preFix, proFix = funcLogName.split(".")
+            preFix, proFix = funcLogName.split(".")
 
             try:
                 funcLog = pd.read_csv(product['path']+funcLogName, header=None)
                 # Retrieve Application version
 
-                # try:
-                #     detail = get_mask_value('Application Version:', funcLog)[0]
-                #     _, version = detail.split(':')
-                #     value = version.replace(' ', '')
-                #     funcReport.data['Application Version_FT1'] += [value]
-                # except:
-                #     funcReport.data['Application Version_FT1'] += ['Unknown']
-
-
                 try:
-                    detail = get_mask_value('Application Version:', funcLog)[0]
+                    detail = funcReport.get_mask_value('Application Version:', funcLog)[0]
                     _, version = detail.split(':')
                     value = version.replace(' ', '')
-                    funcData['Application Version_FT1'] += [value]
+                    funcReport.data['Application Version_FT1'] += [value]
                 except:
-                    funcData['Application Version_FT1'] += ['Unknown']
+                    funcReport.data['Application Version_FT1'] += ['Unknown']
 
                 # Retrieve Detected device comport
+
                 try:
-                    detail = get_mask_value('Detected device comport=COM', funcLog)
+                    detail = funcReport.get_mask_value('Detected device comport=COM', funcLog)
                     if len(detail[0])>0:
-                        funcData['Detect device and comport'] += ['PASS']
+                        funcReport.data['Detect device and comport'] += ['PASS']
                     else:
-                        funcData['Detect device and comport'] += ['FAIL']
+                        funcReport.data['Detect device and comport'] += ['FAIL']
                 except:
                     funcData['Detect device and comport'] += ['FAIL']
 
                 # Check BLE burn
-                check_function('[Burn BLE]', funcData, funcLog, 'Burn BLE')
+                funcReport.check_function('[Burn BLE]',product, funcLog, 'Burn BLE')
 
                 # Retrieve SOC version and check if it matches production version
                 try:
-                    detail = get_mask_value('SOC version', funcLog)[0]
+                    detail = funcReport.get_mask_value('SOC version', funcLog)[0]
                     vut, productionVersion = re.findall(r"v\d{1,2}.\d{1,2}.\d{1,2}.\d{1,2}", detail)
                     if vut == productionVersion:
-                        funcData['SOC version'] += [vut]
+                        funcReport.data['SOC version'] += [vut]
                     else:
-                        funcData['SOC version'] += ['FAIL']
+                        funcReport.data['SOC version'] += ['FAIL']
                 except:
-                    funcData['SOC version'] += ['FAIL']
-
-                # Retrieve BLE version and check if it matches production version
-                # try:
-                #     detail = get_mask_value('BLE version', funcLog)[0]
-                #     vut, productionVersion = re.findall(r"v\d{1,2}.\d{1,2}.\d{1,2}.\d{1,2}", detail)
-                #     if vut == productionVersion:
-                #         funcData['BLE version'] += [vut]
-                #     else:
-                #         funcData['BLE version'] += ['FAIL']
-                # except:
-                #     funcData['BLE version'] += ['FAIL']
+                    funcReport.data['SOC version'] += ['FAIL']
 
                 # Test check firmware
-                check_function('Test Check Firmware PASS', funcData, funcLog, 'Test Check Firmware')
+                funcReport.check_function('Test Check Firmware PASS',product, funcLog, 'Test Check Firmware')
 
                 # Test LTE connection
-                check_function('Test LTE Connection: PASS', funcData, funcLog, 'Test LTE Connection')
+                funcReport.check_function('Test LTE Connection: PASS',product, funcLog, 'Test LTE Connection')
 
                 # 'Test WIFI connection'
-                check_function('Test WiFi Connection: PASS', funcData, funcLog, 'Test WIFI connection')
+                funcReport.check_function('Test WiFi Connection: PASS',product, funcLog, 'Test WIFI connection')
 
                 # Test BLE
-                check_function('Test BLE Echo: PASS', funcData, funcLog, 'Test BLE')
+                funcReport.check_function('Test BLE Echo: PASS',product, funcLog, 'Test BLE')
 
                 # 'Test LED'
-                check_function('TEST LED PASS', funcData, funcLog, 'Test LED')
+                funcReport.check_function('TEST LED PASS',product , funcLog, 'Test LED')
 
                 # 'Test Button'
-                check_function('Test Button: PASS', funcData, funcLog, 'Test Button')
+                funcReport.check_function('Test Button: PASS', product, funcLog, 'Test Button')
 
                 # 'Format'
-                check_function('formating...', funcData, funcLog, 'Format')
+                funcReport.check_function('formating...', product, funcLog, 'Format')
 
                 # MAC & SN number
 
                 try:
-                    detail = get_mask_value('Create BD Address file with', funcLog)[0].split(' ')
+                    detail = funcReport.get_mask_value('Create BD Address file with', funcLog)[0].split(' ')
                     macValue = detail[-1]
-                    funcData['DUT MAC'] += [macValue]
+                    funcReport.data['DUT MAC'] += [macValue]
                     try:
                         mask = serialTable['MAC'] == macValue
                         serialValue = serialTable[mask]['SN'].values[0]
-                        funcData['DUT SN'] += [serialValue]
+                        funcReport.data['DUT SN'] += [serialValue]
                     except:
-                        funcData['DUT SN'] += ['No Match on Serial Table']
+                        funcReport.data['DUT SN'] += ['No Match on Serial Table']
                 except:
-                    funcData['DUT MAC'] += ['LogError. check log file: {logName}'.format(logName=funcLogName)]
-                    funcData['DUT SN'] += ['MAC# not found']
+                    funcReport.data['DUT MAC'] += ['LogError. check log file: {logName}'.format(logName=funcLogName)]
+                    funcReport.data['DUT SN'] += ['MAC# not found']
 
                 print('file "{product}" succeeded to generate "Function test" report.'.format(product=funcLogName))
 
@@ -431,21 +366,13 @@ for product in products:
     targetDir = "functionTestReport"
     fileName = "functionTestReport_{product}_{date}.xlsx".format(date=datetime.datetime.now().strftime('%Y%m%d%H'),
                                                                  product=product['name'])
-    # funcReport.generate_report(product, funcData, targetDir, fileName)
-    targetDir = "functionTestReport"
-    fileName = "functionTestReport_{product}_{date}.xlsx".format(date=datetime.datetime.now().strftime('%Y%m%d%H'), product=product['name'])
-    if not os.path.exists(targetDir):
-        os.mkdir(targetDir)
-    df_function = pd.DataFrame.from_dict(funcData, orient='index').T
-    df_function.to_excel(os.path.join(targetDir, fileName))
+    funcReport.generate_report(product, targetDir, fileName)
 
     # Combine function test and final test as combinedReport and save to combinedReport dir
     print('\n' * 3 + '-' * 50 + '\nStart combining {product} "final test" and "function test" Report ...\n'.format(product=product['name']) + '-' * 50)
-    df_combine = pd.merge(df_final, df_function, how='outer', suffixes=['_final', '_function'])
-    # df_combine = pd.merge(df_final, funcReport.generate_df(funcData), how='outer', suffixes=['_final', '_function'])
+    df_combine = pd.merge(finalReport.generate_df(), funcReport.generate_df(), how='outer', suffixes=['_final', '_function'])
     targetDir = "combinedReport"
-    fileName = "FTReport_{product}_{date}.xlsx".format(date=datetime.datetime.now().strftime('%Y%m%d%H'),
-                                                                 product=product['bitkeyPN'])
+    fileName = "FTReport_{product}_{date}.xlsx".format(date=datetime.datetime.now().strftime('%Y%m%d%H'), product=product['bitkeyPN'])
     if not os.path.exists(targetDir):
         os.mkdir(targetDir)
     df_combine.to_excel(os.path.join(targetDir, fileName))
@@ -458,12 +385,12 @@ for product in products:
     product['qtyFinRep'] = '{product} FT2: {files} logs in folder | {data} data in report'.format(
         files=len(logNames), data=len(data['DUT MAC']), product=product['name'])
 
-#export result to working dir
+# Export result to working dir
 currentTime = datetime.datetime.now().strftime('%Y%m%d%H')
 fName = 'logClassifyReport_{currentTime}.txt'.format(currentTime=currentTime)
 
 f = open(fName, 'w+')
-f.write('Tool Version: {version}\n'.format(version=toolVersion))
+f.write('Tool Version: {version} ({sub})\n'.format(version=toolVersion, sub=list(releaseNote.keys())[0]))
 f.write('Release Note:\n{releaseNote}\n'.format(releaseNote=str(releaseNote[toolVersion]))+'='*50 +'\n')
 for product in products:
     f.write(product['qtyFuncRep']+'\n')
