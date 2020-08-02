@@ -2,10 +2,12 @@ import pandas as pd
 import os
 import datetime
 import re
+import tkinter as tk
 from Report import Report
 
-toolVersion = '1.1'
+toolVersion = '1.2'
 releaseNote = {
+    '1.2': ['Add summery pop-up window of each report'],
     '1.1.1': ['Extract report to Report class module'],
     '1.1': [
         'Add shipping SN report',
@@ -44,25 +46,33 @@ lteBlack = {'path': currentPath + '/98B-500-0007R-LTE_1B.B-99B-500-0006R/',
             'brcmPN': '99B-500-0006R',
             'bitkeyPN':'TW-03(BK)',
             'qtyFuncRep':'',
-            'qtyFinRep': ''}
+            'qtyFinRep': '',
+            'combineddf': None,
+            'sndf': None,}
 lteGrey = {'path': currentPath + '/98B-500-0010R-LTE_1B.G-99B-501-0006R/',
            'name': 'LTE-Grey',
            'brcmPN': '99B-501-0006R',
            'bitkeyPN': 'TW-03(G)',
            'qtyFuncRep':'',
-           'qtyFinRep': ''}
+           'qtyFinRep': '',
+           'combineddf': None,
+           'sndf': None}
 wifiBlack = {'path': currentPath + '/98B-500-0011R-WIFI_1A.B-99B-501-0005R/',
              'name': 'WIFI-Black',
              'brcmPN': '99B-501-0005R',
              'bitkeyPN': 'TW-02(BK)',
              'qtyFuncRep': '',
-             'qtyFinRep': ''}
+             'qtyFinRep': '',
+             'combineddf': None,
+             'sndf': None}
 wifiGrey = {'path': currentPath + '/98B-500-0012R-WIFI_1A.G-99B-500-0005R/',
             'name': 'WIFI-Grey',
             'brcmPN': '99B-500-0005R',
             'bitkeyPN': 'TW-02(G)',
             'qtyFuncRep': '',
-            'qtyFinRep': ''}
+            'qtyFinRep': '',
+            'combineddf': None,
+            'sndf': None}
 
 snDir = currentPath + '/SN_table/'
 snTables = os.listdir(snDir)
@@ -242,14 +252,15 @@ for product in products:
 
     # Export Final Test report
     targetDir = "finalTestReport"
-    fileName = "finalTestReport_{product}_{date}.xlsx".format(date=datetime.datetime.now().strftime('%Y%m%d%H'), product=product['name'])
+    fileName = "FT-2"
     finalReport.generate_report(product, targetDir, fileName)
+
 
     # Export shipping SN Report
     targetDir = "shippingSNReport"
-    fileName = "serial_{product}.csv".format(product=product['bitkeyPN'])
-    snReport.generate_report(product, targetDir, fileName)
-
+    fileName = "serial"
+    snReport.generate_report(product, targetDir, fileName, 'csv')
+    product['sndf'] = snReport.generate_df()
     # Function test data fields, and generate function test report (funcData)
     print('*'*50 + '\nstart generating {product} function test rerport\n'.format(product=product['name']) + '*'*2)
 
@@ -363,16 +374,17 @@ for product in products:
 
     print('\n' * 3 + '-' * 50 + '\n{product} section done\n'.format(product=product['name'])+ '-' * 50 + '\n' * 2)
 
+    # Export function report
     targetDir = "functionTestReport"
-    fileName = "functionTestReport_{product}_{date}.xlsx".format(date=datetime.datetime.now().strftime('%Y%m%d%H'),
-                                                                 product=product['name'])
+    fileName = "FT-1"
     funcReport.generate_report(product, targetDir, fileName)
 
     # Combine function test and final test as combinedReport and save to combinedReport dir
     print('\n' * 3 + '-' * 50 + '\nStart combining {product} "final test" and "function test" Report ...\n'.format(product=product['name']) + '-' * 50)
-    df_combine = pd.merge(finalReport.generate_df(), funcReport.generate_df(), how='outer', suffixes=['_final', '_function'])
+    df_combine = finalReport.combine_df(funcReport.generate_df(), 'DUT MAC', '_FT2', '_FT1')
+    product['combineddf'] = df_combine
     targetDir = "combinedReport"
-    fileName = "FTReport_{product}_{date}.xlsx".format(date=datetime.datetime.now().strftime('%Y%m%d%H'), product=product['bitkeyPN'])
+    fileName = "FT(1&2)_{product}_{date}.xlsx".format(date=datetime.datetime.now().strftime('%Y%m%d%H'), product=product['bitkeyPN'])
     if not os.path.exists(targetDir):
         os.mkdir(targetDir)
     df_combine.to_excel(os.path.join(targetDir, fileName))
@@ -385,15 +397,55 @@ for product in products:
     product['qtyFinRep'] = '{product} FT2: {files} logs in folder | {data} data in report'.format(
         files=len(logNames), data=len(data['DUT MAC']), product=product['name'])
 
+
+# Create pop-up window for analysing ifo (tkiner)
+window = tk.Tk()
+window.title('Report Information')
+window.geometry('500x500')
+
+text = ''
+text += 'Tool Version: {version} ({sub})\n'.format(version=toolVersion, sub=list(releaseNote.keys())[0])
+text += 'Release Note:\n{releaseNote}\n'.format(releaseNote=str(releaseNote[toolVersion]))+'='*50 +'\n'
+text += 'Classification summery\n'+'='*50 + '\nIndividual FT-1 & FT-2 Report\n' + '='*50 + '\n'
+
+for product in products:
+    text += product['qtyFuncRep'] + '\n'
+    text += product['qtyFinRep'] + '\n'
+
+text += '='*50 + '\n Combined Report for FT1 & FT2\n' + '='*50 + '\n'
+
+for product in products:
+    try:
+        text += '{product} effective records: {effective} | total records: {total}\n'.format(
+            product=product['name'],
+            effective=product['combineddf'][product['combineddf']['DUT SN_FT2'] != 'No Match on Serial Table'].dropna().index.values.size,
+            total=product['combineddf'].index.values.size
+        )
+    except Exception as e:
+        text += 'Fail to generate summery of Combined Report. Detail: {e}'.format(e=e)
+
+text += '='*50 + '\n SN Report for FT1 & FT2\n' + '='*50 + '\n'
+
+for product in products:
+    try:
+        mask = ~product['sndf']['SN'].str.contains('No Match on Serial Table, check log file:').fillna(False)
+        text += '{product} effective records: {effective} | total records: {total}\n'.format(
+            product=product['name'],
+            effective=product['sndf'][mask].index.values.size,
+            total=product['sndf'].index.values.size
+        )
+    except Exception as e:
+        text += 'Fail to generate summery of SN Report. Detail: {e}'.format(e=e)
+
+label = tk.Label(window, text=text, font=('Arial', 12))
+
+label.pack()
+
+window.mainloop()
+
 # Export result to working dir
 currentTime = datetime.datetime.now().strftime('%Y%m%d%H')
 fName = 'logClassifyReport_{currentTime}.txt'.format(currentTime=currentTime)
-
 f = open(fName, 'w+')
-f.write('Tool Version: {version} ({sub})\n'.format(version=toolVersion, sub=list(releaseNote.keys())[0]))
-f.write('Release Note:\n{releaseNote}\n'.format(releaseNote=str(releaseNote[toolVersion]))+'='*50 +'\n')
-for product in products:
-    f.write(product['qtyFuncRep']+'\n')
-    f.write(product['qtyFinRep']+'\n')
+f.write(text)
 f.close()
-

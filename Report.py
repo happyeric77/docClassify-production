@@ -55,15 +55,31 @@ class Report:
     def generate_df(self):
         return pd.DataFrame.from_dict(self.data, orient='index').T
 
-    def generate_report(self, product, targetDir, fileName ):
+    def combine_df(self, dfToCombine, on, suffixSelf, suffixTocombine):
+        currentDf = self.generate_df()
+        dfToCombine = dfToCombine
+        df_combine = pd.merge(currentDf, dfToCombine, on=on, how='outer',
+                              suffixes=[suffixSelf, suffixTocombine])
+        try:
+            df_combine = df_combine.drop(columns=['DUT SN' + suffixTocombine])
+        except Exception as e:
+            print('Fail to drop unneeded field in combine_df class. Detail: ' + e)
+        return df_combine
+
+    def generate_report(self, product, targetDir, fileName, fileType='.xlsx' ):
         targetDir = targetDir
-        fileName = "{fileName}t_{product}_{date}.xlsx".format(
+        fileName = "{fileName}_{product}_{date}.{fileType}".format(
             date=datetime.datetime.now().strftime('%Y%m%d%H'),
             product=product['bitkeyPN'],
-            fileName=fileName
+            fileName=fileName,
+            fileType=fileType
         )
         if not os.path.exists(targetDir):
             os.mkdir(targetDir)
         df = self.generate_df()
-        df.to_excel(os.path.join(targetDir, fileName))
+
+        if fileType == 'csv':
+            df.to_csv(os.path.join(targetDir, fileName))
+        else:
+            df.to_excel(os.path.join(targetDir, fileName))
 
