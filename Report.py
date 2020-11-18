@@ -14,7 +14,11 @@ class Report:
 
     def get_mask_value(self, condition, log):
         mask = log[0].str.startswith(condition)
-        return log[mask].values[0]
+        if len(log[mask].values) > 1:
+            outputValue = log[mask].values[-1]
+        else:
+            outputValue = log[mask].values[0]
+        return outputValue
 
     def retrieve_value(self,condition, log, contentToFill=''):
         try:

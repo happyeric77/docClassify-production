@@ -8,7 +8,9 @@ from Report import Report
 toolVersion = '1.4'
 releaseNote = {
     '1.4': [
-        'Support TW-04'
+        '2020/11/18',
+        'Support TW-04',
+        'IMSI, ICCID, IMEI: get the latest value'
     ],
     '1.3': [
         'Add device ID(sn report)',
