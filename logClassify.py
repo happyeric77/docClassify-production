@@ -5,8 +5,15 @@ import re
 import tkinter as tk
 from Report import Report
 
-toolVersion = '1.2'
+toolVersion = '1.3'
 releaseNote = {
+    '1.3': [
+        'Add device ID(sn report)',
+        'sort order by SN',
+        'Division default value as 1(sn report)',
+        'Remove last F from ICCID',
+        'Add LTE connection (combine report)'
+    ],
     '1.2': ['Add summery pop-up window of each report'],
     '1.1.1': ['Extract report to Report class module'],
     '1.1': [
@@ -133,6 +140,7 @@ for product in products:
         'FW Version': [],
         'FW Final Check': [],
         'Check LTE Information': [],
+        'LTE Connection': [],
         'WIFI function': [],
     }
     finalReport = Report(product, data)
@@ -166,7 +174,7 @@ for product in products:
             preFix, proFix = logName.split(".")
 
             try:
-                # Create log DataFrame for final test log
+                # Create log DataFrame for final test log & sn report
                 log = pd.read_csv(product['path']+logName, header=None)
 
                 # Retrieve ICCID (Shipping sn report)
@@ -183,15 +191,25 @@ for product in products:
 
                 # fill customer model name in sn report (Shipping sn report)
                 snReport.data['Model'] += [product['bitkeyPN']]
-                # fill current time in sn report (Shipping sn report)
-                snReport.data['Time'] += [datetime.datetime.now().strftime('%Y%m%d%H%M%S')]
+                # Time (Shipping sn report)
+                snReport.retrieve_value('Test Time:', log, 'Time')
 
                 # Test Time (final report)
                 finalReport.retrieve_value('Test Time:', log, 'Test Time')
 
+                # LTE connection (final report)
+                if len(re.findall(r'^LTE', product['name'])) > 0:
+                    data['LTE Connection'] += ['PASS']
+                else:
+                    data['LTE Connection'] += ['N/A']
                 # MAC#
                 macValue = finalReport.retrieve_value('DUT MAC:', log, 'DUT MAC')
 
+                # Device ID (sn report)
+                snData['deviceID'] += ['072B' + macValue]
+
+                # Division
+                snData['Division'] += ['1']
                 # retrieve carton number
                 try:
                     mask = serialTable['MAC'] == macValue
@@ -204,8 +222,8 @@ for product in products:
                 try:
                     mask = serialTable['MAC'] == macValue
                     serialValue = serialTable[mask]['SN'].values[0]
-                    finalReport.data['DUT SN'] += [serialValue]
-                    snReport.data['SN'] += [serialValue]
+                    finalReport.data['DUT SN'] += [str(serialValue)]
+                    snReport.data['SN'] += [str(serialValue)]
                 except:
                     finalReport.data['DUT SN'] += ['No Match on Serial Table']
                     snReport.data['SN'] += ['No Match on Serial Table, check log file: {log}'.format(log=logName)]
@@ -253,13 +271,13 @@ for product in products:
     # Export Final Test report
     targetDir = "finalTestReport"
     fileName = "FT-2"
-    finalReport.generate_report(product, targetDir, fileName)
+    finalReport.generate_report(product, targetDir, fileName, 'xlsx', 'DUT SN')
 
 
     # Export shipping SN Report
     targetDir = "shippingSNReport"
     fileName = "serial"
-    snReport.generate_report(product, targetDir, fileName, 'csv')
+    snReport.generate_report(product, targetDir, fileName, 'csv', 'SN')
     product['sndf'] = snReport.generate_df()
     # Function test data fields, and generate function test report (funcData)
     print('*'*50 + '\nstart generating {product} function test rerport\n'.format(product=product['name']) + '*'*2)
@@ -356,7 +374,7 @@ for product in products:
                     try:
                         mask = serialTable['MAC'] == macValue
                         serialValue = serialTable[mask]['SN'].values[0]
-                        funcReport.data['DUT SN'] += [serialValue]
+                        funcReport.data['DUT SN'] += [str(serialValue)]
                     except:
                         funcReport.data['DUT SN'] += ['No Match on Serial Table']
                 except:
@@ -377,11 +395,11 @@ for product in products:
     # Export function report
     targetDir = "functionTestReport"
     fileName = "FT-1"
-    funcReport.generate_report(product, targetDir, fileName)
+    funcReport.generate_report(product, targetDir, fileName, 'xlsx', 'DUT SN')
 
     # Combine function test and final test as combinedReport and save to combinedReport dir
     print('\n' * 3 + '-' * 50 + '\nStart combining {product} "final test" and "function test" Report ...\n'.format(product=product['name']) + '-' * 50)
-    df_combine = finalReport.combine_df(funcReport.generate_df(), 'DUT MAC', '_FT2', '_FT1')
+    df_combine = finalReport.combine_df(funcReport.generate_df(), 'DUT MAC', '_FT2', '_FT1', 'DUT SN_FT2')
     product['combineddf'] = df_combine
     targetDir = "combinedReport"
     fileName = "FT(1&2)_{product}_{date}.xlsx".format(date=datetime.datetime.now().strftime('%Y%m%d%H'), product=product['bitkeyPN'])
