@@ -5,8 +5,11 @@ import re
 import tkinter as tk
 from Report import Report
 
-toolVersion = '1.3'
+toolVersion = '1.4'
 releaseNote = {
+    '1.4': [
+        'Support TW-04'
+    ],
     '1.3': [
         'Add device ID(sn report)',
         'sort order by SN',
@@ -23,6 +26,16 @@ releaseNote = {
 }
 
 currentPath = os.getcwd()
+
+# If no LTE(TW-04) Black folder, create one
+if not os.path.exists('98B-500-0007R-LTE_1B.B-99B-503-0006R'):
+    print('create LTE (TW-04) Black folder ')
+    os.mkdir('98B-500-0007R-LTE_1B.B-99B-503-0006R')
+
+# If no LTE Grey(TW-04) folder, create one
+if not os.path.exists('98B-500-0010R-LTE_1B.G-99B-502-0006R'):
+    print('create LTE (TW-04) Grey folder ')
+    os.mkdir('98B-500-0010R-LTE_1B.G-99B-502-0006R')
 
 # If no LTE Black folder, create one
 if not os.path.exists('98B-500-0007R-LTE_1B.B-99B-500-0006R'):
@@ -48,6 +61,23 @@ if not os.path.exists('98B-500-0012R-WIFI_1A.G-99B-500-0005R'):
 if not os.path.exists('SN_table'):
     os.mkdir('SN_table')
 
+lteBlack_tw4 = {'path': currentPath + '/98B-500-0007R-LTE_1B.B-99B-503-0006R/',
+            'name': 'LTE-Black',
+            'brcmPN': '99B-503-0006R',
+            'bitkeyPN':'TW-04(BK)',
+            'qtyFuncRep':'',
+            'qtyFinRep': '',
+            'combineddf': None,
+            'sndf': None,}
+lteGrey_tw4 = {'path': currentPath + '/98B-500-0010R-LTE_1B.G-99B-502-0006R/',
+            'name': 'LTE-Grey',
+            'brcmPN': '99B-502-0006R',
+            'bitkeyPN': 'TW-04(G)',
+            'qtyFuncRep':'',
+            'qtyFinRep': '',
+            'combineddf': None,
+            'sndf': None}
+
 lteBlack = {'path': currentPath + '/98B-500-0007R-LTE_1B.B-99B-500-0006R/',
             'name': 'LTE-Black',
             'brcmPN': '99B-500-0006R',
@@ -57,21 +87,21 @@ lteBlack = {'path': currentPath + '/98B-500-0007R-LTE_1B.B-99B-500-0006R/',
             'combineddf': None,
             'sndf': None,}
 lteGrey = {'path': currentPath + '/98B-500-0010R-LTE_1B.G-99B-501-0006R/',
-           'name': 'LTE-Grey',
-           'brcmPN': '99B-501-0006R',
-           'bitkeyPN': 'TW-03(G)',
-           'qtyFuncRep':'',
-           'qtyFinRep': '',
-           'combineddf': None,
-           'sndf': None}
+            'name': 'LTE-Grey',
+            'brcmPN': '99B-501-0006R',
+            'bitkeyPN': 'TW-03(G)',
+            'qtyFuncRep':'',
+            'qtyFinRep': '',
+            'combineddf': None,
+            'sndf': None}
 wifiBlack = {'path': currentPath + '/98B-500-0011R-WIFI_1A.B-99B-501-0005R/',
-             'name': 'WIFI-Black',
-             'brcmPN': '99B-501-0005R',
-             'bitkeyPN': 'TW-02(BK)',
-             'qtyFuncRep': '',
-             'qtyFinRep': '',
-             'combineddf': None,
-             'sndf': None}
+            'name': 'WIFI-Black',
+            'brcmPN': '99B-501-0005R',
+            'bitkeyPN': 'TW-02(BK)',
+            'qtyFuncRep': '',
+            'qtyFinRep': '',
+            'combineddf': None,
+            'sndf': None}
 wifiGrey = {'path': currentPath + '/98B-500-0012R-WIFI_1A.G-99B-500-0005R/',
             'name': 'WIFI-Grey',
             'brcmPN': '99B-500-0005R',
@@ -97,8 +127,7 @@ except Exception as e:
 
 serialTable = pd.concat(tables)
 
-
-products = [lteBlack, lteGrey, wifiBlack, wifiGrey]
+products = [lteBlack_tw4, lteGrey_tw4,lteBlack, lteGrey, wifiBlack, wifiGrey]
 for product in products:
     print('\n' * 3 + '===' * 50 + '\n{product} section start\n'.format(product=product['name']) + '====' * 50 + '\n' * 3)
     allFiles = os.listdir(product['path'])
