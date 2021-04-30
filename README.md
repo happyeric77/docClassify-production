@@ -2,7 +2,7 @@
 
 Input the Production test logs, output the certain format csv file:
 
-![format](https://photos.google.com/share/AF1QipO2DWxrrEWus_wLdlHrRVvQcSCzqnr_Tj-berR-cJFLoKWeeBTPWcQmnp0a0ODhrg/photo/AF1QipNPeecT2saVuv92xLc7CdKc8Cp3j_tRhvB55Hgv?key=cUgxY2puWjVMZElPV3RnalBDcC04cFh4YXFDb1pR)
+![format](https://lh3.googleusercontent.com/pw/ACtC-3d20T9YuhfsFvji7Oy6dJtAuvOcvxcjl3JkSb4qA3TjD-l4Hyj-6y7qD4mbripMHOL0jDDYxMuHb6Tf3hDp-BEy7-nNTB9xbdxDx9IsU90tvmFV7EFAuMEswjeauPm6EvwqZDMkTznx8gOAEIYqcJOFNA=w2338-h574-no?authuser=0)
 
 
 ## Setup python environemnt:
